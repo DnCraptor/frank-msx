@@ -3117,6 +3117,19 @@ int FindState(const char *Name)
 /** Load cartridge into given slot. Returns cartridge size  **/
 /** in 16kB pages on success, 0 on failure.                 **/
 /*************************************************************/
+/** DropCart() **********************************************/
+/** Release the ROM of a cartridge slot without resetting  **/
+/** the MSX. FreeMemory() frees only GetMemory() chunks,   **/
+/** so a ROM kept in the flash window is simply dropped.   **/
+/*************************************************************/
+void DropCart(int Slot)
+{
+  if((Slot<0)||(Slot>=MAXSLOTS)) return;
+  FreeMemory(ROMData[Slot]);
+  ROMData[Slot] = 0;
+  ROMMask[Slot] = 0;
+}
+
 int LoadCart(const char *FileName,int Slot,int Type)
 {
   int C1,C2,Len,Pages,ROM64,BASIC;

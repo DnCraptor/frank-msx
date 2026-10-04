@@ -282,13 +282,13 @@ int msx_mount_entry_with_mapper(int idx, msx_target_t target, int mapper,
              * allocates the new buffer BEFORE freeing the old one,
              * so we plug that half of the leak here. The eject code
              * inside LoadCart() does free, but also calls ResetMSX,
-             * which we want to control ourselves from the UI layer. */
-            extern byte *ROMData[];
-            extern byte ROMMask[];
-            if (g_cart_loaded[slot] && ROMData[slot]) {
-                psram_free(ROMData[slot]);
-                ROMData[slot] = NULL;
-                ROMMask[slot] = 0;
+             * which we want to control ourselves from the UI layer.
+             * DropCart() goes through fMSX's FreeMemory(): it removes
+             * the chunk from fMSX's list (no double free on the next
+             * reset) and leaves a ROM in the flash window alone —
+             * free() on an XIP address faults and hangs the machine. */
+            if (g_cart_loaded[slot]) {
+                DropCart(slot);
                 g_cart_loaded[slot] = false;
             }
 
