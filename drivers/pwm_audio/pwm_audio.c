@@ -68,6 +68,7 @@ static io_rw_32 *cc_a, *cc_b;
 static uint32_t shift_a, shift_b, mask_a, mask_b;
 
 static bool initialized = false;
+static volatile bool muted = false;
 
 static void __not_in_flash_func(sample_clock_irq)(void) {
     pwm_hw->intr = 1u << PWM_AUDIO_CLOCK_SLICE;
@@ -79,6 +80,7 @@ static void __not_in_flash_func(sample_clock_irq)(void) {
         rd_cnt = r + 1;
         last_level = (uint16_t)level;
     }
+    if (muted) level = 0;
     hw_write_masked(cc_a, level << shift_a, mask_a);
     hw_write_masked(cc_b, level << shift_b, mask_b);
 }
@@ -180,6 +182,10 @@ void pwm_audio_push_samples(const int16_t *buf, int count) {
 
 void pwm_audio_fill_silence(int count) {
     ring_put(NULL, count, true);
+}
+
+void pwm_audio_set_muted(bool m) {
+    muted = m;
 }
 
 void pwm_audio_set_frame_rate(int frame_rate) {

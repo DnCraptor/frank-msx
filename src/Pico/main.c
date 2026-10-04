@@ -175,6 +175,9 @@ static void ensure_i2s_initialized(void) {
  * Called from platform.c's WriteAudio() with mono int16 samples. */
 void audio_dispatch_push_samples(const int16_t *buf, int count) {
     uint8_t mode = g_settings.audio_mode;
+    /* "Disabled" parks the PWM outputs at 0 V instead of holding them at
+     * mid-level. */
+    if (pwm_audio_initialized) pwm_audio_set_muted(mode == MSX_AUDIO_DISABLED);
     if (mode == MSX_AUDIO_PWM) {
         ensure_pwm_audio_initialized();
         pwm_audio_push_samples(buf, count);
@@ -341,6 +344,21 @@ extern int StartMSX(int NewMode, int NewRAMPages, int NewVRAMPages);
 extern void TrashMSX(void);
 
 int main(void) {
+#if defined(BOARD_PC) && defined(PICO_SMPS_MODE_PIN)
+    /* The PICO-PC carries a Raspberry Pi Pico 2, whose 3.3 V SMPS drops
+     * into power-save (PFM) mode at light load unless GPIO23 is driven
+     * high. At 252 MHz / default core voltage the load is light enough for
+     * PFM, and its load-dependent ripple on 3.3 V reaches the PWM audio
+     * outputs (PWM level = duty x 3.3 V) as hiss that follows every SD card
+     * access or other activity. Forcing PWM mode (as the Pico 2 datasheet
+     * recommends for low-noise analog work) keeps the rail quiet. The
+     * emulators that run quietly on this board clock at 378-504 MHz with a
+     * raised core voltage, where the SMPS stays out of PFM anyway. */
+    gpio_init(PICO_SMPS_MODE_PIN);
+    gpio_set_dir(PICO_SMPS_MODE_PIN, GPIO_OUT);
+    gpio_put(PICO_SMPS_MODE_PIN, 1);
+#endif
+
     /* 1. Voltage + clock for overclocking.
      *
      * Only touch vreg / QMI flash timings when genuinely overclocking
