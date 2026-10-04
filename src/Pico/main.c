@@ -16,6 +16,7 @@
 
 #include "pico/stdlib.h"
 #include "pico/multicore.h"
+#include "pico/flash.h"
 #include "pico/time.h"
 #include "hardware/vreg.h"
 #include "hardware/clocks.h"
@@ -265,6 +266,9 @@ static volatile bool core1_ready = false;
 
 #if !defined(HDMI_HSTX) && !defined(VGA_HSTX) && !defined(VIDEO_COMPOSITE) && defined(HAS_I2S)
 void __time_critical_func(render_core)(void) {
+    /* Let core 0 park this core while it writes cartridges to flash
+     * (no-PSRAM mode, msx_flashrom.c). */
+    flash_safe_execute_core_init();
     static i2s_config_t i2s_cfg;
     i2s_cfg = i2s_get_default_config();
     i2s_cfg.sample_freq     = AUDIO_SAMPLE_RATE;
@@ -366,8 +370,16 @@ int main(void) {
     uint psram_pin = get_psram_pin();
     printf("PSRAM pin: %u\n", psram_pin);
     psram_init(psram_pin);
-    psram_reset();
-    printf("PSRAM initialized (8 MB)\n");
+    {
+        bool have_psram = psram_detect(psram_pin);
+        psram_set_present(have_psram);
+        if (have_psram) {
+            psram_reset();
+            printf("PSRAM initialized (8 MB)\n");
+        } else {
+            printf("PSRAM not found: MSX1 in SRAM, cartridges in flash\n");
+        }
+    }
 
     /* Clear framebuffers before any graphics init. */
     memset(screen_mem, 0, sizeof(screen_mem));
@@ -481,7 +493,9 @@ int main(void) {
 #ifndef FRANK_MSX_MODEL
 #define FRANK_MSX_MODEL 3
 #endif
-        msx_boot_require_bios(sd_mounted, FRANK_MSX_MODEL);
+        /* Without PSRAM only MSX1 runs (see ResetMSX), so only MSX.ROM
+         * is required. */
+        msx_boot_require_bios(sd_mounted, psram_present() ? FRANK_MSX_MODEL : 1);
     }
 
     /* 8. Launch audio core */
@@ -564,6 +578,11 @@ int main(void) {
         int m, r, v;
         msx_settings_compose(&m, &r, &v);
         Mode = m; RAMPages = r; VRAMPages = v;
+        if (!psram_present()) {
+            /* SRAM holds only an MSX1: 64 kB RAM, 32 kB VRAM. */
+            Mode = (Mode & ~MSX_MODEL) | MSX_MSX1;
+            RAMPages = 4; VRAMPages = 2;
+        }
     }
 
     if (!InitMachine()) {

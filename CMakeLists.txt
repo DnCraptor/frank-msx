@@ -1,3 +1,17 @@
+# == DO NOT EDIT THE FOLLOWING LINES for the Raspberry Pi Pico VS Code Extension to work ==
+if(WIN32)
+    set(USERHOME $ENV{USERPROFILE})
+else()
+    set(USERHOME $ENV{HOME})
+endif()
+set(sdkVersion 2.2.0)
+set(toolchainVersion 14_2_Rel1)
+set(picotoolVersion 2.2.0)
+set(picoVscode ${USERHOME}/.pico-sdk/cmake/pico-vscode.cmake)
+if (EXISTS ${picoVscode})
+    include(${picoVscode})
+endif()
+# ====================================================================================
 #
 # frank-msx — fMSX for RP2350
 #
@@ -20,7 +34,7 @@ cmake_minimum_required(VERSION 3.13)
 #
 # Select with -DPLATFORM=m1|m2|dv|pc|z0 (default m2).
 # BOARD_VARIANT is kept as a legacy alias for the same choice.
-set(PLATFORM       "m2" CACHE STRING "Target platform: m1, m2, dv, pc, z0")
+set(PLATFORM       "pc" CACHE STRING "Target platform: m1, m2, dv, pc, z0")
 set_property(CACHE PLATFORM PROPERTY STRINGS m1 m2 dv pc z0)
 
 # Allow BOARD_VARIANT (uppercase) as a back-compat alias.
@@ -345,6 +359,7 @@ set(PICO_PORT
     src/Pico/msx_state.c
     src/Pico/msx_boot.c
     src/Pico/msx_tape.c
+    src/Pico/msx_flashrom.c
 )
 
 add_executable(frank-msx
@@ -506,6 +521,8 @@ target_link_libraries(frank-msx
     hardware_irq
     hardware_vreg
     hardware_clocks
+    hardware_flash
+    pico_flash
     sdcard
     fatfs
     drivers
@@ -525,5 +542,26 @@ if(USB_HID_ENABLED)
 else()
     pico_enable_stdio_usb(frank-msx 1)
 endif()
+
+# Output: bin/<build type>/<board>-frank-msx-<video>-<MHz>-<version>.uf2,
+# named like the other emulators of the kit (e.g. PCp2-frank-micro-...).
+if(PLATFORM STREQUAL "pc")
+    set(FRANK_BOARD_PREFIX "PCp2")
+else()
+    set(FRANK_BOARD_PREFIX "${PLATFORM}p2")
+endif()
+if(HDMI_HSTX)
+    set(FRANK_VIDEO_SUFFIX "HDMI")
+elseif(VGA_HSTX)
+    set(FRANK_VIDEO_SUFFIX "VGA")
+elseif(VIDEO_COMPOSITE)
+    set(FRANK_VIDEO_SUFFIX "TV")
+else()
+    set(FRANK_VIDEO_SUFFIX "HDMI-VGA")
+endif()
+set_target_properties(frank-msx PROPERTIES
+    OUTPUT_NAME "${FRANK_BOARD_PREFIX}-frank-msx-${FRANK_VIDEO_SUFFIX}-${CPU_SPEED}MHz-${FRANK_MSX_VERSION_STR}"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE}"
+    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin/${CMAKE_BUILD_TYPE}")
 
 pico_add_extra_outputs(frank-msx)

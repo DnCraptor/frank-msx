@@ -28,10 +28,16 @@ msx_entry_t *msx_entries    = NULL;    /* lazily allocated in PSRAM */
 int          msx_entry_count = 0;
 char         msx_current_dir[MSX_MAX_PATH_LEN] = "/MSX";
 
+/* Without PSRAM the table comes from the SRAM heap, so keep it small. */
+#define MSX_MAX_ENTRIES_NO_PSRAM 64
+static int msx_entry_cap = 0;
+
 static void ensure_entry_table(void) {
     if (msx_entries) return;
+    msx_entry_cap = psram_present() ? MSX_MAX_ENTRIES : MSX_MAX_ENTRIES_NO_PSRAM;
     msx_entries = (msx_entry_t *)psram_malloc(
-        sizeof(msx_entry_t) * MSX_MAX_ENTRIES);
+        sizeof(msx_entry_t) * msx_entry_cap);
+    if (!msx_entries) msx_entry_cap = 0;
 }
 
 static int ext_ieq(const char *ext, const char *want) {
@@ -117,7 +123,7 @@ int msx_rescan(void) {
         if (fr != FR_OK) return 0;
     }
 
-    while (msx_entry_count < MSX_MAX_ENTRIES) {
+    while (msx_entry_count < msx_entry_cap) {
         fr = f_readdir(&dir, &fno);
         if (fr != FR_OK || fno.fname[0] == 0) break;
         if (fno.fname[0] == '.') continue;   /* hide dotfiles + "."/".." */
