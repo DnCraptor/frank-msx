@@ -264,6 +264,32 @@ void audio_dispatch_fill_silence(int count) {
 /* ---- Render core (Core 1): boots audio + drains the ring ------------- */
 static volatile bool core1_ready = false;
 
+/* ---- Video core (Core 1) on PWM-only boards with PIO HDMI/VGA ----------
+ *
+ * Boards without an I2S DAC (DV / PC / Z0) have no audio render core, so
+ * Core 1 used to sit idle while the per-scanline HDMI DMA interrupt ran on
+ * Core 0 next to the emulator, at top priority, and starved the rest of
+ * Core 0's interrupt work. As in pico-nes / murm386 / PICO-BK, the video
+ * driver gets Core 1 to itself: graphics_init() runs there, so its DMA
+ * IRQ handler is installed and enabled on Core 1. */
+#if !defined(HDMI_HSTX) && !defined(VGA_HSTX) && !defined(VIDEO_COMPOSITE) && !defined(HAS_I2S)
+#define VIDEO_ON_CORE1 1
+static volatile bool video_core_ready = false;
+
+static void __no_inline_not_in_flash_func(video_core_idle)(void) {
+    for (;;) __wfi();   /* everything happens in the DMA IRQ handler */
+}
+
+static void video_core(void) {
+    /* Core 0 parks this core while it writes cartridges to flash. */
+    flash_safe_execute_core_init();
+    graphics_init(g_out_HDMI);
+    __dmb();
+    video_core_ready = true;
+    video_core_idle();
+}
+#endif
+
 #if !defined(HDMI_HSTX) && !defined(VGA_HSTX) && !defined(VIDEO_COMPOSITE) && defined(HAS_I2S)
 void __time_critical_func(render_core)(void) {
     /* Let core 0 park this core while it writes cartridges to flash
@@ -455,7 +481,13 @@ int main(void) {
     }
 #endif
     printf("Initializing video output...\n");
+#ifdef VIDEO_ON_CORE1
+    multicore_launch_core1(video_core);
+    while (!video_core_ready) tight_loop_contents();
+    __dmb();
+#else
     graphics_init(g_out_HDMI);
+#endif
     graphics_set_buffer(SCREEN[0]);
     graphics_set_res(FB_W, FB_H);
     graphics_set_shift((320 - FB_W) / 2, 0);  /* centre horizontally */
@@ -526,9 +558,10 @@ int main(void) {
     printf("Render core ready\n");
 #else
     /* PWM-only platforms (DV / PC / Z0): no render core — PWM audio is
-     * filled directly on Core 0 from audio_dispatch_push_samples. */
+     * filled directly on Core 0 from audio_dispatch_push_samples; Core 1
+     * runs the video driver (VIDEO_ON_CORE1, see above). */
     core1_ready = true;
-    printf("PWM audio only — no render core launched\n");
+    printf("PWM audio on Core 0, video on Core 1\n");
 #endif
 
 #ifdef PICO_DEFAULT_LED_PIN

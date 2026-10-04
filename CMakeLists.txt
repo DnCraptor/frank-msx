@@ -118,7 +118,7 @@ set(FLASH_SPEED "66"  CACHE STRING "Flash target max frequency in MHz")
 set(MSX_MODEL "3" CACHE STRING "MSX model to emulate (1, 2, or 3)")
 
 # Optional USB HID host (disabled by default since we focus on PS/2)
-option(USB_HID_ENABLED "Enable USB HID host" OFF)
+option(USB_HID_ENABLED "Enable USB HID host" ON)
 
 # CPU voltage selection based on speed. The RP2350 vreg only exposes
 # 1.50 V → 1.60 V → 1.65 V → 1.70 V steps (no 1.55 V).
@@ -512,7 +512,7 @@ target_compile_options(frank-msx PRIVATE
     -Wno-sign-compare
     -Wno-missing-braces
     -Wno-implicit-fallthrough
-    -Wno-pointer-sign
+    $<$<COMPILE_LANGUAGE:C>:-Wno-pointer-sign>
 )
 
 target_link_libraries(frank-msx
