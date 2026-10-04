@@ -421,6 +421,10 @@ target_compile_definitions(frank-msx PRIVATE
     FRANK_MSX_PSRAM=1             # route all MSX chunk allocations to 8 MB PSRAM
     FRANK_MSX_MODEL=${MSX_MODEL}
     FRANK_MSX_SOFT_LIMITER=1      # 4:1 soft-knee limiter in place of hard int16 clamp
+    # Allocation failure must return NULL, not panic: without PSRAM the
+    # SRAM heap cannot hold e.g. the blank 720 kB DRIVEA.DSK that fMSX
+    # creates at start-up, and fMSX handles a NULL from malloc itself.
+    PICO_MALLOC_PANIC=0
 )
 
 # Peripheral pins per platform — these get compiled into the standalone
