@@ -34,7 +34,7 @@ cmake_minimum_required(VERSION 3.13)
 #
 # Select with -DPLATFORM=m1|m2|dv|pc|z0 (default m2).
 # BOARD_VARIANT is kept as a legacy alias for the same choice.
-set(PLATFORM       "pc" CACHE STRING "Target platform: m1, m2, dv, pc, z0")
+set(PLATFORM       "z0" CACHE STRING "Target platform: m1, m2, dv, pc, z0")
 set_property(CACHE PLATFORM PROPERTY STRINGS m1 m2 dv pc z0)
 
 # Allow BOARD_VARIANT (uppercase) as a back-compat alias.
@@ -252,11 +252,12 @@ if(VIDEO_COMPOSITE)
     target_compile_definitions(tv_driver PUBLIC PLATFORM_${BOARD_VARIANT}=1)
 endif()
 
-# I2S audio source is only compiled on platforms with an I2S DAC wired up.
-# PWM-only boards (DV / PC / Z0) skip it entirely — the pins the driver
-# references aren't defined by their board headers.
+# I2S audio source is only compiled on platforms with an I2S DAC wired up
+# (Z0: external PCM5102A module on GP10..GP12). PWM-only boards (DV / PC)
+# skip it entirely — the pins the driver references aren't defined by their
+# board headers.
 set(_AUDIO_I2S_SRC)
-if(PLATFORM STREQUAL "m1" OR PLATFORM STREQUAL "m2")
+if(PLATFORM STREQUAL "m1" OR PLATFORM STREQUAL "m2" OR PLATFORM STREQUAL "z0")
     list(APPEND _AUDIO_I2S_SRC
         drivers/audio.c
         drivers/audio_i2s_opt.S
